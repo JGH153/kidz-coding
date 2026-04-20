@@ -23,7 +23,6 @@ type GameState = "menu" | "playing" | "gameover";
 type HitMask = {
   minY: Int16Array;
   maxY: Int16Array;
-  overlay: HTMLCanvasElement;
 };
 
 export default function Home() {
@@ -174,7 +173,6 @@ export default function Home() {
         pipes,
         imgRef.current,
         imgReadyRef.current,
-        maskRef.current,
         Math.floor(distanceRef.current),
         state === "playing",
       );
@@ -314,22 +312,7 @@ function buildMask(img: HTMLImageElement): HitMask {
     }
   }
 
-  const overlay = document.createElement("canvas");
-  overlay.width = PLAYER_W;
-  overlay.height = PLAYER_H;
-  const ovCtx = overlay.getContext("2d")!;
-  const overlayData = ovCtx.createImageData(PLAYER_W, PLAYER_H);
-  for (let i = 0; i < PLAYER_W * PLAYER_H; i++) {
-    if (data[i * 4 + 3] >= ALPHA_THRESHOLD) {
-      overlayData.data[i * 4] = 255;
-      overlayData.data[i * 4 + 1] = 0;
-      overlayData.data[i * 4 + 2] = 0;
-      overlayData.data[i * 4 + 3] = 128;
-    }
-  }
-  ovCtx.putImageData(overlayData, 0, 0);
-
-  return { minY, maxY, overlay };
+  return { minY, maxY };
 }
 
 function draw(
@@ -338,7 +321,6 @@ function draw(
   pipes: Pipe[],
   img: HTMLImageElement | null,
   imgReady: boolean,
-  mask: HitMask | null,
   score: number,
   showScore: boolean,
 ) {
@@ -389,13 +371,6 @@ function draw(
     ctx.fillRect(-PLAYER_H / 2, -PLAYER_W / 2, PLAYER_H, PLAYER_W);
   }
   ctx.restore();
-
-  if (mask) {
-    ctx.drawImage(mask.overlay, PLAYER_X, player.y);
-  } else {
-    ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
-    ctx.fillRect(PLAYER_X, player.y, PLAYER_W, PLAYER_H);
-  }
 
   if (showScore) {
     ctx.save();
