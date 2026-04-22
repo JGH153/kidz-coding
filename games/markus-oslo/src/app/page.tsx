@@ -38,6 +38,9 @@ const ROB_COOLDOWN_MS = 15000;
 const ROB_REWARD = 500;
 const ROB_POLICE_COUNT = 5;
 
+const WIN_SCORE = 1000;
+const WIN_MULTIPLIER = 10;
+
 type GameState = "menu" | "playing" | "gameover";
 type Bullet = { x: number; y: number; vx: number; vy: number; born: number };
 type Enemy = { x: number; y: number; hp: number };
@@ -173,6 +176,8 @@ export default function Home() {
   const robbedFlashRef = useRef(0);
   const robAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicRef = useRef<HTMLAudioElement | null>(null);
+  const hasWonRef = useRef(false);
+  const winFlashRef = useRef(0);
 
   const [gameState, setGameState] = useState<GameState>("menu");
   const [score, setScore] = useState(0);
@@ -228,6 +233,8 @@ export default function Home() {
     robProgressRef.current = 0;
     robCooldownUntilRef.current = 0;
     robbedFlashRef.current = 0;
+    hasWonRef.current = false;
+    winFlashRef.current = 0;
     const a = robAudioRef.current;
     if (a) {
       a.pause();
@@ -427,9 +434,14 @@ export default function Home() {
         }
 
         const enemies = enemiesRef.current;
+        const won = hasWonRef.current;
+        const spawnInterval = won
+          ? ENEMY_SPAWN_MS / WIN_MULTIPLIER
+          : ENEMY_SPAWN_MS;
+        const maxEnemies = won ? ENEMY_MAX * WIN_MULTIPLIER : ENEMY_MAX;
         if (
-          enemies.length < ENEMY_MAX &&
-          now - lastSpawnRef.current > ENEMY_SPAWN_MS
+          enemies.length < maxEnemies &&
+          now - lastSpawnRef.current > spawnInterval
         ) {
           lastSpawnRef.current = now;
           for (let tries = 0; tries < 10; tries++) {
@@ -493,6 +505,10 @@ export default function Home() {
                 enemies.splice(i, 1);
                 scoreRef.current += 10;
                 setScore(scoreRef.current);
+                if (!hasWonRef.current && scoreRef.current >= WIN_SCORE) {
+                  hasWonRef.current = true;
+                  winFlashRef.current = 180;
+                }
               }
               break;
             }
@@ -530,6 +546,7 @@ export default function Home() {
 
         if (flashRef.current > 0) flashRef.current -= 1;
         if (robbedFlashRef.current > 0) robbedFlashRef.current -= 1;
+        if (winFlashRef.current > 0) winFlashRef.current -= 1;
 
         const bankDist = distPointToRect(
           player.x,
@@ -566,6 +583,10 @@ export default function Home() {
             robbedFlashRef.current = 90;
             scoreRef.current += ROB_REWARD;
             setScore(scoreRef.current);
+            if (!hasWonRef.current && scoreRef.current >= WIN_SCORE) {
+              hasWonRef.current = true;
+              winFlashRef.current = 180;
+            }
             for (let k = 0; k < 24; k++) {
               particlesRef.current.push({
                 x: BANK_X + BANK_W / 2,
@@ -576,7 +597,10 @@ export default function Home() {
                 color: Math.random() < 0.6 ? "#fde047" : "#16a34a",
               });
             }
-            for (let k = 0; k < ROB_POLICE_COUNT; k++) {
+            const policeCount = hasWonRef.current
+              ? ROB_POLICE_COUNT * WIN_MULTIPLIER
+              : ROB_POLICE_COUNT;
+            for (let k = 0; k < policeCount; k++) {
               for (let t = 0; t < 8; t++) {
                 const ang = Math.random() * Math.PI * 2;
                 const dist = 420 + Math.random() * 220;
@@ -640,6 +664,8 @@ export default function Home() {
         robCoolRemaining,
         robbedFlashRef.current,
         nearBankForDraw && state === "playing",
+        winFlashRef.current,
+        hasWonRef.current,
       );
 
       rafRef.current = requestAnimationFrame(loop);
@@ -811,6 +837,8 @@ function draw(
   robCoolRemainingMs: number,
   robbedFlash: number,
   playerNearBank: boolean,
+  winFlash: number,
+  hasWon: boolean,
 ) {
   ctx.fillStyle = "#3d4a33";
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -1061,6 +1089,47 @@ function draw(
     ctx.fillStyle = "#f87171";
     ctx.strokeText(sub, VIEW_W / 2, VIEW_H / 2 - 50);
     ctx.fillText(sub, VIEW_W / 2, VIEW_H / 2 - 50);
+    ctx.restore();
+  }
+
+  if (winFlash > 0) {
+    const t = winFlash / 180;
+    ctx.save();
+    ctx.fillStyle = `rgba(253, 224, 71, ${0.25 * t})`;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.globalAlpha = Math.min(1, t * 1.5);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 92px system-ui, sans-serif";
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = "#000";
+    ctx.fillStyle = "#fde047";
+    ctx.strokeText("DU VANT!", VIEW_W / 2, VIEW_H / 2 - 30);
+    ctx.fillText("DU VANT!", VIEW_W / 2, VIEW_H / 2 - 30);
+    ctx.font = "900 24px system-ui, sans-serif";
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#000";
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeText("1000 POENG!", VIEW_W / 2, VIEW_H / 2 + 26);
+    ctx.fillText("1000 POENG!", VIEW_W / 2, VIEW_H / 2 + 26);
+    ctx.font = "700 18px system-ui, sans-serif";
+    ctx.lineWidth = 4;
+    ctx.fillStyle = "#f87171";
+    ctx.strokeText("Nå kommer hele politistyrken...", VIEW_W / 2, VIEW_H / 2 + 58);
+    ctx.fillText("Nå kommer hele politistyrken...", VIEW_W / 2, VIEW_H / 2 + 58);
+    ctx.restore();
+  }
+
+  if (playing && hasWon && winFlash <= 0) {
+    ctx.save();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.font = "900 14px system-ui, sans-serif";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000";
+    ctx.fillStyle = "#fde047";
+    ctx.strokeText("KAOS-MODUS 10x", VIEW_W - 16, 74);
+    ctx.fillText("KAOS-MODUS 10x", VIEW_W - 16, 74);
     ctx.restore();
   }
 
